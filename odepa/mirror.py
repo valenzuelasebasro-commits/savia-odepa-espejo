@@ -209,20 +209,30 @@ PATRONES = [
 ]
 
 
+_ULTIMO_PATRON = [0]  # índice del último patrón que funcionó (días seguidos suelen compartirlo)
+
+
 def sondear(d: str):
-    """d = AAAAMMDD. Prueba patrones conocidos en los uploads del mes ±1."""
+    """d = AAAAMMDD. Prueba patrones conocidos en los uploads del mes ±1.
+
+    Empieza por el patrón que funcionó en el día anterior: ODEPA alterna nombres,
+    pero en rachas, así que esto evita ~9 intentos fallidos por día en un backfill
+    largo (que si no, excede el límite de tiempo del job)."""
     y, m = int(d[:4]), int(d[4:6])
     meses = [
         (y, m),
         (y - 1 if m == 1 else y, 12 if m == 1 else m - 1),
         (y + 1 if m == 12 else y, 1 if m == 12 else m + 1),
     ]
-    for patron in PATRONES:
-        fname = patron(d)
+    primero = _ULTIMO_PATRON[0]
+    orden = [primero] + [i for i in range(len(PATRONES)) if i != primero]
+    for i in orden:
+        fname = PATRONES[i](d)
         for fy, fm in meses:
             url = f"/wp-content/uploads/{fy}/{fm:02d}/{fname}"
             buf = bajar_si_xlsx(url)
             if buf:
+                _ULTIMO_PATRON[0] = i
                 return url, fname, buf
     return None
 
@@ -514,9 +524,10 @@ def cmd_backfill(args):
             if not os.path.exists(dest) or args.force:
                 with open(dest, "wb") as fh:
                     fh.write(buf)
-                print(f"sondeo OK {d} -> {fname} ({len(buf)} bytes)")
+                print(f"sondeo OK {d} -> {fname} ({len(buf)} bytes)", flush=True)
             hit += 1
         else:
+            print(f"sin boletín {d}", flush=True)
             miss += 1
         d += dt.timedelta(days=1)
     _save_json(URLS_PATH, urls)
