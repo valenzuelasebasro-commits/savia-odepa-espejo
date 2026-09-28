@@ -1,0 +1,124 @@
+name: Espejo ODEPA
+
+# Espeja el boletín diario de ODEPA, corre el motor de análisis y commitea
+# payload.json, para que la corrida programada de Claude (que vive en la nube y
+# NO alcanza odepa.gob.cl: el proxy deniega todo *.gob.cl con CONNECT 403) pueda
+# leer los datos desde raw.githubusercontent.com.
+#
+# Diseño (REGLA NÚMERO UNO del runbook): se DESCUBRE el enlace .xlsx leyendo la
+# página del boletín. No se construye el nombre del archivo. La versión anterior
+# de este workflow probaba dos patrones fijos y habría quedado vacía en silencio
+# el día que ODEPA renombrara otra vez — que es exactamente lo que pasó en
+# septiembre de 2026 y costó una semana de ceguera.
+#
+# Si la página deja de entregar enlaces, el job termina en ROJO y GitHub avisa.
+# Nunca se degrada en silencio.
+
+on:
+  schedule:
+    # UTC. Chile es UTC−3 en horario de verano y UTC−4 en invierno, y el cron de
+    # GitHub tampoco sigue el DST: por eso se corre VARIAS veces al día en vez de
+    # apuntar a una hora exacta. Así, cualquiera sea la hora en que ODEPA publique,
+    # el espejo lo toma el mismo día y el rezago del dashboard baja a 0–1 día.
+    - cron: '0 16 * * 1-5'   # ~13:00 Chile (verano) / 12:00 (invierno)
+    - cron: '0 20 * * 1-5'   # ~17:00 / 16:00
+    - cron: '0 23 * * 1-5'   # ~20:00 / 19:00
+  workflow_dispatch:
+    inputs:
+      backfill_from:
+        description: 'Backfill (ÚLTIMO RECURSO, sondea patrones) desde AAAA-MM-DD'
+        required: false
+      backfill_to:
+        description: 'Backfill hasta AAAA-MM-DD'
+        required: false
+      force_parse:
+        description: 'Reparsear todo data/ desde cero'
+        type: boolean
+        default: false
+
+# Dos corridas simultáneas se pisarían al hacer push del store.
+concurrency:
+  group: espejo-odepa
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  espejo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar dependencias
+        run: pip install --quiet openpyxl
+
+      - name: Comprobación de salud — ¿la página sigue entregando enlaces?
+        # Falla en rojo si el índice da 0. Es el equivalente en el runner de la
+        # comprobación `(await OdepaMonitor.indexarPagina(true)).size >= 1`.
+        run: python3 odepa/mirror.py discover
+
+      - name: Backfill (solo si se pidió a mano)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.backfill_from != '' }}
+        run: |
+          python3 odepa/mirror.py backfill \
+            --from "${{ inputs.backfill_from }}" \
+            --to "${{ inputs.backfill_to || inputs.backfill_from }}"
+
+      - name: Descubrir y descargar el boletín
+        run: python3 odepa/mirror.py fetch
+
+      - name: Parsear al store histórico
+        run: python3 odepa/mirror.py parse ${{ inputs.force_parse && '--force' || '' }}
+
+      - name: Correr el motor de análisis (analyze.js sin modificar)
+        run: node odepa/run_analysis.js --out payload.json
+
+      - name: Resumen en el log
+        run: |
+          echo '### Espejo ODEPA' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat payload.meta.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python3 odepa/mirror.py status >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commitear lo que cambió
+        run: |
+          git config user.name  'espejo-odepa[bot]'
+          git config user.email 'espejo-odepa@users.noreply.github.com'
+          git add -A data store payload.json payload.meta.json
+          if git diff --cached --quiet; then
+            echo 'sin cambios: ODEPA no publicó nada nuevo'
+            exit 0
+          fi
+          FECHA=$(python3 -c "import json;print(json.load(open('payload.meta.json'))['date'])")
+          git commit -m "espejo: boletín ODEPA ${FECHA}" \
+                     -m "$(cat payload.meta.json)"
+          # Una corrida concurrente pudo haber empujado antes.
+          for i in 1 2 3; do
+            git pull --rebase --autostash -q && git push -q && exit 0
+            echo "reintento de push $i"
+            sleep 5
+          done
+          echo '::error::no se pudo hacer push del store'
+          exit 1
+
+      - name: Publicar payload.json como artefacto del run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payload
+          path: |
+            payload.json
+            payload.meta.json
+          if-no-files-found: warn
+          retention-days: 30
