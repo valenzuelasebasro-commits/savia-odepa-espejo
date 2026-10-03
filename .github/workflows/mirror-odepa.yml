@@ -20,9 +20,12 @@ on:
     # GitHub tampoco sigue el DST: por eso se corre VARIAS veces al día en vez de
     # apuntar a una hora exacta. Así, cualquiera sea la hora en que ODEPA publique,
     # el espejo lo toma el mismo día y el rezago del dashboard baja a 0–1 día.
-    - cron: '0 16 * * 1-5'   # ~13:00 Chile (verano) / 12:00 (invierno)
-    - cron: '0 20 * * 1-5'   # ~17:00 / 16:00
-    - cron: '0 23 * * 1-5'   # ~20:00 / 19:00
+    # Cada 30 min en la ventana en que ODEPA sube el boletín. Medido con Last-Modified
+    # de los XLSX reales (16-sep a 2-oct-2026): entre 10:17 y 15:38 hora de Chile, con
+    # la mayoría antes de las 11:30. 13–20 UTC = 10:00–17:30 Chile en verano (09:00–16:30
+    # en invierno). Un repo público no consume minutos de Actions.
+    - cron: '*/30 13-20 * * 1-5'
+    - cron: '0 23 * * 1-5'   # ~20:00 / 19:00, red de seguridad para publicaciones tardías
   workflow_dispatch:
     inputs:
       backfill_from:
@@ -96,6 +99,13 @@ jobs:
           git config user.name  'espejo-odepa[bot]'
           git config user.email 'espejo-odepa@users.noreply.github.com'
           git add -A data store payload.json payload.meta.json
+          # Con corridas cada 30 min, solo se commitea si cambió el dato (data/ o store/);
+          # un payload regenerado con el mismo boletín no merece un commit.
+          if git diff --cached --quiet -- data store; then
+            git reset -q
+            echo 'sin boletín nuevo: no se commitea'
+            exit 0
+          fi
           if git diff --cached --quiet; then
             echo 'sin cambios: ODEPA no publicó nada nuevo'
             exit 0
