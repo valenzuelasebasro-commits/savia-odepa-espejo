@@ -2,18 +2,6 @@
  {
   "action": "parse",
   "err": 0,
-  "ins": 803,
-  "ok": 1,
-  "registros": 42632,
-  "same": 0,
-  "skip": 58,
-  "skip_err": 0,
-  "ts": "2026-09-29T16:17:46.542712+00:00",
-  "upd": 0
- },
- {
-  "action": "parse",
-  "err": 0,
   "ins": 0,
   "ok": 0,
   "registros": 42632,
@@ -2397,6 +2385,18 @@
   "skip": 74,
   "skip_err": 0,
   "ts": "2026-10-21T17:56:09.315487+00:00",
+  "upd": 0
+ },
+ {
+  "action": "parse",
+  "err": 0,
+  "ins": 0,
+  "ok": 0,
+  "registros": 53818,
+  "same": 0,
+  "skip": 74,
+  "skip_err": 0,
+  "ts": "2026-10-21T18:23:26.933716+00:00",
   "upd": 0
  }
 ]
