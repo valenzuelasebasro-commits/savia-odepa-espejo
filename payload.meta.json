@@ -1,16 +1,16 @@
 {
- "date": "2026-11-19",
- "registros": 70231,
- "archivos": 95,
+ "date": "2026-11-20",
+ "registros": 71102,
+ "archivos": 96,
  "desde": "2026-07-01",
- "hasta": "2026-11-19",
+ "hasta": "2026-11-20",
  "diasSinBoletin90": 2,
- "rojos": 4,
- "amarillos": 17,
- "verdes": 29,
- "alertasRM": 194,
- "crit": 24,
- "alta": 81,
- "media": 89,
- "bytes": 92180
+ "rojos": 3,
+ "amarillos": 22,
+ "verdes": 25,
+ "alertasRM": 183,
+ "crit": 20,
+ "alta": 80,
+ "media": 83,
+ "bytes": 90356
 }
