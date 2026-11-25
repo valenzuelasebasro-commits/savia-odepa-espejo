@@ -1453,5 +1453,20 @@
   "upd": 0,
   "url": "/wp-content/uploads/2026/11/Boletin_Diario_de_Frutas_y_Hortalizas_20261123.xlsx",
   "via": "pagina"
+ },
+ "Boletin_Diario_de_Frutas_y_Hortalizas_25112026.xlsx": {
+  "bytes": 368933,
+  "dataDate": "2026-11-25",
+  "file": "Boletin_Diario_de_Frutas_y_Hortalizas_25112026.xlsx",
+  "ins": 768,
+  "loads": 1,
+  "pub": "2026-11-25",
+  "rows": 768,
+  "same": 0,
+  "status": "ok",
+  "ts": "2026-11-25T22:05:40.478741+00:00",
+  "upd": 0,
+  "url": "/wp-content/uploads/2026/11/Boletin_Diario_de_Frutas_y_Hortalizas_25112026.xlsx",
+  "via": "pagina"
  }
 }
